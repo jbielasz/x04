@@ -1,0 +1,127 @@
+# Creating a NAS SVM Using the **NAS_SVM_Creation** Template in Ansible Automation Platform
+
+## Purpose
+
+This article describes how to provision a new NAS SVM (including CIFS server configuration and an optional DR SVM) using the **NAS_SVM_Creation** job template in Ansible Automation Platform (AAP).
+
+## Scope
+
+This procedure covers:
+
+- Primary and optional DR NetApp clusters
+- Creation of a NAS SVM for CIFS/NAS
+- Configuration of:
+  - Data LIF IP addresses
+  - DNS
+  - CIFS server and Active Directory join
+  - Integration with **Topaz AV** (AV is **only** for Topaz)
+
+Target audience: Storage Engineering / Storage Operations.
+
+---
+
+## Prerequisites
+
+Before you launch the template, ensure that:
+
+1. You have an **approved ticket** in the corporate request system (e.g. ServiceNow).
+2. You know the FQDNs of:
+   - The **primary** NetApp cluster
+   - The **DR** cluster (if a DR SVM is required)
+3. You have all required **IP addresses**:
+   - Vserver Public IP/CIDR (data LIF)
+   - Vserver Vscan IP/CIDR – used only for **Topaz AV**
+   - DR Vserver IP/CIDR (if a DR SVM is required)
+4. You have **DNS information**:
+   - IP addresses of DNS servers for the primary and, if applicable, DR SVM
+5. You have **Active Directory details**:
+   - AD domain name
+   - Distinguished Name (DN) of the OU for the CIFS computer account  
+     (for example: `OU=NTAP,OU=STOR,OU=SRV,OU=Tier-1`)
+   - Optional: IP addresses of preferred domain controllers (DCs)
+   - Optional: dedicated AD join account (username + password)
+6. You can log in to AAP and have permissions to launch the template.
+
+---
+
+## Procedure
+
+1. Log in to **Ansible Automation Platform** in your browser.
+
+2. In the left-hand menu, select **Templates** and open  
+   **NAS_SVM_Creation**.
+
+3. Click **Launch**.  
+   The **Prompt on Launch – Survey** window appears.
+
+4. Fill in all required survey fields (see detailed descriptions below).  
+   Optional fields should be used only when needed.
+
+5. Click **Next** to open the **Review** page and verify all values.
+
+6. If everything is correct, click **Launch** to start the job.
+
+7. After the job finishes, perform **post-deployment checks**:
+   - Confirm that the SVM exists on the primary cluster (and DR cluster, if used).
+   - Verify that the CIFS server has successfully joined the AD domain.
+   - Check DNS records (A / PTR).
+   - Make sure client access to the shares works as requested in the ticket.
+
+---
+
+## Survey Field Reference
+
+| Field name (on screen) | Required | Description / How to fill in |
+|------------------------|----------|------------------------------|
+| **KB Article** | Yes | Paste the URL of this KB article, for example `https://go/KB00xxxx`. |
+| **Ticket Number** | Yes | ID of the approved request (e.g. ServiceNow ticket number). Used for audit purposes. |
+| **Cluster FQDN** | Yes | FQDN of the **primary** cluster where the SVM will be created, e.g. `clu01.example.com`. |
+| **Vserver FQDN** | Yes | FQDN of the new SVM / CIFS server, e.g. `fs01.example.com`. |
+| **Vserver Public IP/CIDR** | Yes | Data LIF IP address and mask for the SVM, e.g. `10.10.10.20/24`. This is the IP used by clients. |
+| **Vserver Vscan IP/CIDR** | Yes | IP/CIDR used **only by the Topaz AV solution** for AV (Vscan) traffic. Use the value defined in the Topaz design. |
+| **Vserver Nameservers** | Yes | Comma-separated list of DNS server IPs for the primary SVM, e.g. `10.1.1.10,10.1.1.11`. |
+| **Topaz AV Servers IP's** | Optional | Comma-separated list of **Topaz AV** server IPs that will scan this SVM. This field is only for Topaz – do not enter other AV systems here. Example: `10.20.1.11,10.20.1.12`. |
+| **DR Cluster FQDN** | Required if DR SVM is created | FQDN of the DR cluster, e.g. `clu01-dr.example.com`. |
+| **DR Vserver FQDN** | Optional | FQDN of the DR SVM, if it should be created, e.g. `fs01-dr.example.com`. |
+| **DR Vserver IP/CIDR** | Optional | Data LIF IP/CIDR for the DR SVM. |
+| **DR Vserver Nameservers** | Optional | Comma-separated list of DNS server IPs for the DR SVM (same format as *Vserver Nameservers*). |
+| **Optional Cluster Username** | Optional | Custom username for connecting to the **primary** cluster. If left empty, the default AAP credential is used. |
+| **Optional Cluster Password** | Optional | Password for the user specified in **Optional Cluster Username**. |
+| **Optional DR Cluster Username** | Optional | Custom username for connecting to the **DR** cluster. If left empty, the default AAP credential is used. |
+| **Optional DR Cluster Password** | Optional | Password for the user specified in **Optional DR Cluster Username**. |
+| **Optional IP Addresses of the Preferred DCs** | Optional | Comma-separated list of DC IP addresses to be preferred for the CIFS AD join. Leave empty to allow any DC. |
+| **Configure CIFS Server?** | Yes | `true` – create and join a CIFS server to AD. `false` – skip CIFS configuration (e.g. NFS-only SVM). |
+| **AD Discovery Mode** | Yes | Mode used to discover DCs. Default: `all` (any DC). Change only if required by the AD team or design. |
+| **OU** | Yes | Full DN of the OU where the CIFS computer account will be created. Example: `OU=NTAP,OU=STOR,OU=SRV,OU=Tier-1`. |
+| **Optional AD Join Username** | Optional | AD account used for the CIFS AD join if different from the default AAP credential. Format: `DOMAIN\user` or `user@domain`. |
+| **Optional AD Join Password** | Optional | Password for the account specified in **Optional AD Join Username**. |
+
+---
+
+## Troubleshooting
+
+### 1. Job cannot connect to the cluster
+
+- Verify `Cluster FQDN` (and `DR Cluster FQDN`, if used).
+- Check that the correct credentials are provided (Optional *Username/Password* fields).
+- Make sure AAP has network connectivity to the cluster (routing, firewall).
+
+### 2. CIFS server did not join the AD domain
+
+- Verify DNS settings (fields `Vserver Nameservers` / `DR Vserver Nameservers`).
+- Check the AD domain, OU and the account used in `Optional AD Join Username/Password`.
+- Ensure the account has permission to create computer objects in the specified OU.
+
+### 3. Name resolution issues on clients
+
+- Confirm that **A** and **PTR** records exist for `Vserver FQDN` / `DR Vserver FQDN`.
+- Clear DNS cache on the client (`ipconfig /flushdns` or equivalent).
+- Ensure clients use the same DNS servers that were configured in the survey.
+
+### 4. Topaz AV integration not working
+
+- Verify the values in `Vserver Vscan IP/CIDR` and `Topaz AV Servers IP's`.
+- Confirm that traffic between the Vscan LIF and the Topaz servers is allowed by the firewall.
+- Check the Topaz configuration itself according to the Topaz documentation.
+
+---
